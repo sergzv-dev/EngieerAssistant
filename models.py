@@ -12,3 +12,8 @@ class UserSignUP(BaseModel):
     username: str
     password: str
     email: str
+
+#log in
+class UserLoginInDB(BaseModel):
+    id: int
+    hashed_password: str
