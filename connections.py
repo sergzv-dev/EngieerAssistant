@@ -1,7 +1,7 @@
 import os
+from dotenv import load_dotenv
 import psycopg
 import redis
-from dotenv import load_dotenv
 
 load_dotenv()
 

@@ -2,19 +2,31 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Annotated
 from task_broker import TaskBroker
-from models import User,UserInDB, UserSignUP
+from models import UserInDB, UserSignUP
 from repository import UserRepository
 from security.hash_manager import hash_password, verify_password
-from security.token_manager import create_access_token
+from security.token_manager import create_access_token, verify_token
+import jwt
 
 app = FastAPI()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl = 'token')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl = '/login')
 
 t_broker = TaskBroker()
 user_repo = UserRepository()
 
-def get_user(token: Annotated[str, Depends(oauth2_scheme)]) -> User:
-    pass
+def get_current_userid(token: Annotated[str, Depends(oauth2_scheme)]) -> int:
+    try:
+        user_id = verify_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='Token expired',
+                            headers={'WWW-Authenticate': 'Bearer'})
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='Invalid token',
+                            headers={'WWW-Authenticate': 'Bearer'})
+    return user_id
+
 
 @app.post('/signup')
 async def signup(new_user: UserSignUP) -> dict:
@@ -27,7 +39,7 @@ async def signup(new_user: UserSignUP) -> dict:
 @app.post('/login')
 async def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -> dict:
     user = user_repo.get_user_auth_data(form.username)
-    if not user or  not verify_password(form.password, user.hashed_password):
+    if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Incorrect login or password',
                             headers={'WWW-Authenticate': 'Bearer'})
@@ -35,9 +47,8 @@ async def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -> dict:
     return {'access_token': token, 'token_type': 'bearer'}
 
 
-
 @app.post('/question')
-async def question(req_data: Annotated[str, Depends(get_user)]) -> str:
+async def question(req_data: str, user_id: Annotated[int, Depends(get_current_userid)]) -> str:
     return t_broker.add_task(req_data)
 
 @app.get('/question/result/{task_id}')

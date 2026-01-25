@@ -18,3 +18,7 @@ def create_access_token(user_id: int) -> str:
         }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     return  token
+
+def verify_token(token: str) -> int:
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    return int(payload.get('sub'))
